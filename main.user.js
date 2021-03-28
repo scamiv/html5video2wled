@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         video2wledwall
 // @namespace    http://tampermonkey.net/
-// @version      0.2
+// @version      0.3
 // @description  takes html5 video object and sends it to wled using websocket api
 // @author       You
 // @match         https://www.youtube.com/watch*
@@ -11,7 +11,7 @@
 // @downloadURL https://github.com/scamiv/html5video2wled/blob/main/main.user.js
 // @updateURL https://github.com/scamiv/html5video2wled/blob/main/main.user.js
 // ==/UserScript==
-
+var resample = true; //resize/resample using Hermite filter
 var ledPerPacket = 60;
 ledPerPacket = ledPerPacket * 2;
 
@@ -38,29 +38,37 @@ var processor = {
     if (this.video.paused || this.video.ended) {
       return;
     }
+    var t0 = performance.now()
     this.computeFrame();
     let self = this;
     setTimeout(function() {
       self.timerCallback();
-    }, 50);
+    }, 50 - (performance.now() - t0) );
   },
 
   doLoad: function() {
     this.video = document.querySelector(".html5-video-container > video");
     this.c1 = document.createElement('canvas');
+
     this.c1.width = 18;
     this.c1.height = 16;
     this.c1.style.position = "fixed";
+    this.c1.style.top = "10vh";
     this.c1.style.zIndex = "9999";
-    this.c1.style.width = this.c1.width * 10 + "px";
-
+    this.c1.style.width = "160px";
+    this.c1.style.imageRendering = "pixelated";
+    this.c1.style.imageRendering = "-moz-crisp-edges";
     document.body.appendChild(this.c1);
     this.ctx1 = this.c1.getContext("2d");
     this.ctx1.rect(0, 0, this.c1.width, this.c1.height);
     this.ctx1.fillStyle = "grey";
 
-
-
+    this.c2 = document.createElement('canvas');
+    this.c2.width = 256;
+    this.c2.height = 144;
+    document.body.appendChild(this.c2);
+		this.ctx2 = this.c2.getContext("2d")
+    
     let self = this;
 
     this.webSocket = this.wsconnect();
@@ -77,13 +85,6 @@ var processor = {
     this.webSocket = new WebSocket('ws://4.3.2.1/ws');
     this.webSocket.onmessage = function(e) {
       console.log('Message:', e.data);
-       /*var errdec = JSON.parse(e.data);
-      console.log(errdec);
-      if (errdec.error == 9) {
-        console.log("Got error 9, reducing packet size");
-        ledPerPacket = ledPerPacket - 2;
-        console.log("ledPerPacket =" + ledPerPacket);
-      }*/
     };
     this.webSocket.onclose = function(e) {
       console.log('Socket is closed. Reconnect will be attempted in 1 second.', e.reason);
@@ -94,7 +95,7 @@ var processor = {
     let self = this;
     this.webSocket.onerror = function(err) {
       console.error('Socket encountered error: ', err.message, 'Closing socket');
-      self.webSocket.close(); //todo: reduce ledPerPacket on error 9
+      self.webSocket.close();
     };
     return this.webSocket;
   },
@@ -104,10 +105,14 @@ var processor = {
     if (extrawidth > 0) { 
     	left = (extrawidth / 2) * -1;
     }
-console.log(left);
     
-    this.ctx1.drawImage(this.video, left, 0,extrawidth +  this.c1.width, this.c1.height );
-
+    this.ctx2.drawImage(this.video, 0, 0, this.c2.width, this.c2.height );
+    if (resample) {
+  	  var imgdata = resample_single(this.c2, extrawidth +  this.c1.width, this.c1.height);
+  	  this.ctx1.putImageData(imgdata, left, 0);
+    } else {
+			this.ctx1.drawImage(this.c2, left, 0,extrawidth +  this.c1.width, this.c1.height );
+    }
     var frame = this.ctx1.getImageData(0, 0, this.c1.width, this.c1.height);
     let l = frame.data.length;
     var leds = new Array();
@@ -142,5 +147,87 @@ console.log(left);
     }
   }
 };
+/**
+ * Hermite resize - fast image resize/resample using Hermite filter. 1 cpu version!
+ * 
+ * @param {HtmlElement} canvas
+ * @param {int} width
+ * @param {int} height
+ * @param {boolean} resize_canvas if true, canvas will be resized. Optional.
+ */
+function resample_single(canvas, width, height, resize_canvas) {
+    var width_source = canvas.width;
+    var height_source = canvas.height;
+    width = Math.round(width);
+    height = Math.round(height);
 
+    var ratio_w = width_source / width;
+    var ratio_h = height_source / height;
+    var ratio_w_half = Math.ceil(ratio_w / 2);
+    var ratio_h_half = Math.ceil(ratio_h / 2);
+
+    var ctx = canvas.getContext("2d");
+    var img = ctx.getImageData(0, 0, width_source, height_source);
+    var img2 = ctx.createImageData(width, height);
+    var data = img.data;
+    var data2 = img2.data;
+
+    for (var j = 0; j < height; j++) {
+        for (var i = 0; i < width; i++) {
+            var x2 = (i + j * width) * 4;
+            var weight = 0;
+            var weights = 0;
+            var weights_alpha = 0;
+            var gx_r = 0;
+            var gx_g = 0;
+            var gx_b = 0;
+            var gx_a = 0;
+            var center_y = (j + 0.5) * ratio_h;
+            var yy_start = Math.floor(j * ratio_h);
+            var yy_stop = Math.ceil((j + 1) * ratio_h);
+            for (var yy = yy_start; yy < yy_stop; yy++) {
+                var dy = Math.abs(center_y - (yy + 0.5)) / ratio_h_half;
+                var center_x = (i + 0.5) * ratio_w;
+                var w0 = dy * dy; //pre-calc part of w
+                var xx_start = Math.floor(i * ratio_w);
+                var xx_stop = Math.ceil((i + 1) * ratio_w);
+                for (var xx = xx_start; xx < xx_stop; xx++) {
+                    var dx = Math.abs(center_x - (xx + 0.5)) / ratio_w_half;
+                    var w = Math.sqrt(w0 + dx * dx);
+                    if (w >= 1) {
+                        //pixel too far
+                        continue;
+                    }
+                    //hermite filter
+                    weight = 2 * w * w * w - 3 * w * w + 1;
+                    var pos_x = 4 * (xx + yy * width_source);
+                    //alpha
+                    gx_a += weight * data[pos_x + 3];
+                    weights_alpha += weight;
+                    //colors
+                    if (data[pos_x + 3] < 255)
+                        weight = weight * data[pos_x + 3] / 250;
+                    gx_r += weight * data[pos_x];
+                    gx_g += weight * data[pos_x + 1];
+                    gx_b += weight * data[pos_x + 2];
+                    weights += weight;
+                }
+            }
+            data2[x2] = gx_r / weights;
+            data2[x2 + 1] = gx_g / weights;
+            data2[x2 + 2] = gx_b / weights;
+            data2[x2 + 3] = gx_a / weights_alpha;
+        }
+    }
+    //clear and resize canvas
+  /*  if (resize_canvas === true) {
+        canvas.width = width;
+        canvas.height = height;
+    } else {
+        ctx.clearRect(0, 0, width_source, height_source);
+    }*/
+
+    
+    return img2;
+}
 processor.doLoad();
