@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         video2wledwall
 // @namespace    http://tampermonkey.net/
-// @version      0.3
+// @version      0.4
 // @description  takes html5 video object and sends it to wled using websocket api
 // @author       You
 // @match         https://www.youtube.com/watch*
@@ -11,8 +11,9 @@
 // @downloadURL https://github.com/scamiv/html5video2wled/blob/main/main.user.js
 // @updateURL https://github.com/scamiv/html5video2wled/blob/main/main.user.js
 // ==/UserScript==
+var maxFps = 20;
 var resample = true; //resize/resample using Hermite filter
-var ledPerPacket = 60;
+var ledPerPacket = 72;
 ledPerPacket = ledPerPacket * 2;
 
 var map = [15, 16, 47, 48, 79, 80, 111, 112, 143, 144, 175, 176, 207, 208, 239, 240, 271, 272,
@@ -43,7 +44,7 @@ var processor = {
     let self = this;
     setTimeout(function() {
       self.timerCallback();
-    }, 50 - (performance.now() - t0) );
+    }, (1000/maxFps) - (performance.now() - t0) );
   },
 
   doLoad: function() {
