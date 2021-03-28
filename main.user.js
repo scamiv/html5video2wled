@@ -8,8 +8,8 @@
 // @connect      4.3.2.1
 // @grant        GM.xmlHttpRequest
 // @run-at      document-idle
-// @downloadURL https://github.com/scamiv/html5video2wled/blob/main/main.user.js
-// @updateURL https://github.com/scamiv/html5video2wled/blob/main/main.user.js
+// @downloadURL https://github.com/scamiv/html5video2wled/raw/main/main.user.js
+// @updateURL https://github.com/scamiv/html5video2wled/raw/main/main.user.js
 // ==/UserScript==
 
 const WallWidth = 18;
