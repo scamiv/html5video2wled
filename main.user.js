@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         video2wledwall
-// @namespace    http://tampermonkey.net/
+// @namespace    https://github.com/scamiv/html5video2wled
 // @version      0.4
 // @description  takes html5 video object and sends it to wled using websocket api
 // @author       You
@@ -11,10 +11,13 @@
 // @downloadURL https://github.com/scamiv/html5video2wled/blob/main/main.user.js
 // @updateURL https://github.com/scamiv/html5video2wled/blob/main/main.user.js
 // ==/UserScript==
-var maxFps = 20;
-var resample = true; //resize/resample using Hermite filter
+
+const WallWidth = 18;
+const WallHeigth = 16;
+const maxFps = 20;
+const resample = true; //resize/resample using Hermite filter
 var ledPerPacket = 72;
-ledPerPacket = ledPerPacket * 2;
+
 
 var map = [15, 16, 47, 48, 79, 80, 111, 112, 143, 144, 175, 176, 207, 208, 239, 240, 271, 272,
   14, 17, 46, 49, 78, 81, 110, 113, 142, 145, 174, 177, 206, 209, 238, 241, 270, 273,
@@ -33,6 +36,8 @@ var map = [15, 16, 47, 48, 79, 80, 111, 112, 143, 144, 175, 176, 207, 208, 239, 
   1, 30, 33, 62, 65, 94, 97, 126, 129, 158, 161, 190, 193, 222, 225, 254, 257, 286,
   0, 31, 32, 63, 64, 95, 96, 127, 128, 159, 160, 191, 192, 223, 224, 255, 256, 287
 ]
+
+ledPerPacket = ledPerPacket * 2;
 var processor = {
 
   timerCallback: function() {
@@ -49,10 +54,10 @@ var processor = {
 
   doLoad: function() {
     this.video = document.querySelector(".html5-video-container > video");
+    
     this.c1 = document.createElement('canvas');
-
-    this.c1.width = 18;
-    this.c1.height = 16;
+    this.c1.width = WallWidth;
+    this.c1.height = WallHeigth;
     this.c1.style.position = "fixed";
     this.c1.style.top = "10vh";
     this.c1.style.zIndex = "9999";
@@ -60,9 +65,8 @@ var processor = {
     this.c1.style.imageRendering = "pixelated";
     this.c1.style.imageRendering = "-moz-crisp-edges";
     document.body.appendChild(this.c1);
+    
     this.ctx1 = this.c1.getContext("2d");
-    this.ctx1.rect(0, 0, this.c1.width, this.c1.height);
-    this.ctx1.fillStyle = "grey";
 
     this.c2 = document.createElement('canvas');
     this.c2.width = 256;
@@ -101,19 +105,26 @@ var processor = {
     return this.webSocket;
   },
   computeFrame: function() {
+    
+    //crop position
     var left = 0;
     var extrawidth = (this.c1.height * this.aspect) - this.c1.width;
     if (extrawidth > 0) { 
     	left = (extrawidth / 2) * -1;
     }
     
+    //draw downscaled element to intermediate canvas (downscaling in the process)
     this.ctx2.drawImage(this.video, 0, 0, this.c2.width, this.c2.height );
+    
+    //scale,crop and draw to output canvas
     if (resample) {
-  	  var imgdata = resample_single(this.c2, extrawidth +  this.c1.width, this.c1.height);
+  	  var imgdata = resample_single(this.c2, extrawidth +  this.c1.width, this.c1.height); //resample from intermediate to final size, slow
   	  this.ctx1.putImageData(imgdata, left, 0);
     } else {
 			this.ctx1.drawImage(this.c2, left, 0,extrawidth +  this.c1.width, this.c1.height );
     }
+    
+    //send data
     var frame = this.ctx1.getImageData(0, 0, this.c1.width, this.c1.height);
     let l = frame.data.length;
     var leds = new Array();
@@ -220,14 +231,6 @@ function resample_single(canvas, width, height, resize_canvas) {
             data2[x2 + 3] = gx_a / weights_alpha;
         }
     }
-    //clear and resize canvas
-  /*  if (resize_canvas === true) {
-        canvas.width = width;
-        canvas.height = height;
-    } else {
-        ctx.clearRect(0, 0, width_source, height_source);
-    }*/
-
     
     return img2;
 }
