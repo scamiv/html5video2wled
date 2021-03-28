@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         video2wledwall
 // @namespace    https://github.com/scamiv/html5video2wled
-// @version      0.4
+// @version      0.5
 // @description  takes html5 video object and sends it to wled using websocket api
 // @author       You
 // @match         https://www.youtube.com/watch*
