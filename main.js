@@ -1,16 +1,17 @@
 // ==UserScript==
 // @name         video2wledwall
 // @namespace    http://tampermonkey.net/
-// @version      0.1
+// @version      0.2
 // @description  takes html5 video object and sends it to wled using websocket api
 // @author       You
 // @match         https://www.youtube.com/watch*
 // @connect      4.3.2.1
 // @grant        GM.xmlHttpRequest
 // @run-at      document-idle
+// @downloadURL https://github.com/scamiv/html5video2wled/blob/main/main.js
 // ==/UserScript==
 
-var ledPerPacket = 32;
+var ledPerPacket = 60;
 ledPerPacket = ledPerPacket * 2;
 
 var map = [15, 16, 47, 48, 79, 80, 111, 112, 143, 144, 175, 176, 207, 208, 239, 240, 271, 272,
@@ -50,7 +51,7 @@ var processor = {
     this.c1.height = 16;
     this.c1.style.position = "fixed";
     this.c1.style.zIndex = "9999";
-    //this.c1.style.width = this.c1.width * 10 + "px";
+    this.c1.style.width = this.c1.width * 10 + "px";
 
     document.body.appendChild(this.c1);
     this.ctx1 = this.c1.getContext("2d");
@@ -63,8 +64,7 @@ var processor = {
 
     this.webSocket = this.wsconnect();
     this.video.addEventListener("play", function() {
-      self.width = self.video.videoWidth / 2;
-      self.height = self.video.videoHeight / 2;
+      self.aspect = self.video.videoWidth /  self.video.videoHeight;
       self.timerCallback();
 
     }, false);
@@ -91,9 +91,14 @@ var processor = {
     return this.webSocket;
   },
   computeFrame: function() {
-
-
-    this.ctx1.drawImage(this.video, 0, 0, this.c1.width, this.c1.height);
+    var left = 0;
+    var extrawidth = (this.c1.height * this.aspect) - this.c1.width;
+    if (extrawidth > 0) { 
+    	left = (extrawidth / 2) * -1;
+    }
+console.log(left);
+    
+    this.ctx1.drawImage(this.video, left, 0,extrawidth +  this.c1.width, this.c1.height );
 
     var frame = this.ctx1.getImageData(0, 0, this.c1.width, this.c1.height);
     let l = frame.data.length;
@@ -110,7 +115,6 @@ var processor = {
       leds.push(rgb);
       rgb = new Array();
     }
-
     try {
       //wled cant handle fragmentation, keep packets small enugh
       for (let i = 0; i < leds.length / ledPerPacket;) {
