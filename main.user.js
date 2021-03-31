@@ -4,8 +4,8 @@
 // @version      0.6
 // @description  takes html5 video object and sends it to wled using websocket api
 // @author       You
-// @match         http*://*.youtube.com/*
-// @match        http*://*.akamaihd.net/*
+// @match         *://*.youtube.com/*
+// @match        *://*.akamaihd.net/*
 // @connect      4.3.2.1
 // @grant        GM.xmlHttpRequest
 // @run-at      document-idle
