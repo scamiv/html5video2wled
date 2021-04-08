@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         video2wledwall
 // @namespace    https://github.com/scamiv/html5video2wled
-// @version      0.6
+// @version      0.7
 // @description  takes html5 video object and sends it to wled using websocket api
 // @author       You
 // @match         *://*.youtube.com/*
@@ -13,33 +13,39 @@
 // @updateURL https://github.com/scamiv/html5video2wled/raw/main/main.user.js
 // ==/UserScript==
 
-const WallWidth = 18;
+const WallWidth = 32;
 const WallHeigth = 16;
-const maxFps = 20;
 const resample = true; //resize/resample using Hermite filter
+
 var ledPerPacket = 72;
+const maxPps = 120; // packages per second, experimental value
 
 
-const map = [15, 16, 47, 48, 79, 80, 111, 112, 143, 144, 175, 176, 207, 208, 239, 240, 271, 272,
-             14, 17, 46, 49, 78, 81, 110, 113, 142, 145, 174, 177, 206, 209, 238, 241, 270, 273,
-             13, 18, 45, 50, 77, 82, 109, 114, 141, 146, 173, 178, 205, 210, 237, 242, 269, 274,
-             12, 19, 44, 51, 76, 83, 108, 115, 140, 147, 172, 179, 204, 211, 236, 243, 268, 275,
-             11, 20, 43, 52, 75, 84, 107, 116, 139, 148, 171, 180, 203, 212, 235, 244, 267, 276,
-             10, 21, 42, 53, 74, 85, 106, 117, 138, 149, 170, 181, 202, 213, 234, 245, 266, 277,
-             9, 22, 41, 54, 73, 86, 105, 118, 137, 150, 169, 182, 201, 214, 233, 246, 265, 278,
-             8, 23, 40, 55, 72, 87, 104, 119, 136, 151, 168, 183, 200, 215, 232, 247, 264, 279,
-             7, 24, 39, 56, 71, 88, 103, 120, 135, 152, 167, 184, 199, 216, 231, 248, 263, 280,
-             6, 25, 38, 57, 70, 89, 102, 121, 134, 153, 166, 185, 198, 217, 230, 249, 262, 281,
-             5, 26, 37, 58, 69, 90, 101, 122, 133, 154, 165, 186, 197, 218, 229, 250, 261, 282,
-             4, 27, 36, 59, 68, 91, 100, 123, 132, 155, 164, 187, 196, 219, 228, 251, 260, 283,
-             3, 28, 35, 60, 67, 92, 99, 124, 131, 156, 163, 188, 195, 220, 227, 252, 259, 284,
-             2, 29, 34, 61, 66, 93, 98, 125, 130, 157, 162, 189, 194, 221, 226, 253, 258, 285,
-             1, 30, 33, 62, 65, 94, 97, 126, 129, 158, 161, 190, 193, 222, 225, 254, 257, 286,
-             0, 31, 32, 63, 64, 95, 96, 127, 128, 159, 160, 191, 192, 223, 224, 255, 256, 287
+const map = [15,16,47,48,79,80,111,112,143,144,175,176,207,208,239,240,271,272,303,304,335,336,367,368,399,400,431,432,463,464,495,496,
+             14,17,46,49,78,81,110,113,142,145,174,177,206,209,238,241,270,273,302,305,334,337,366,369,398,401,430,433,462,465,494,497,
+             13,18,45,50,77,82,109,114,141,146,173,178,205,210,237,242,269,274,301,306,333,338,365,370,397,402,429,434,461,466,493,498,
+             12,19,44,51,76,83,108,115,140,147,172,179,204,211,236,243,268,275,300,307,332,339,364,371,396,403,428,435,460,467,492,499,
+             11,20,43,52,75,84,107,116,139,148,171,180,203,212,235,244,267,276,299,308,331,340,363,372,395,404,427,436,459,468,491,500,
+             10,21,42,53,74,85,106,117,138,149,170,181,202,213,234,245,266,277,298,309,330,341,362,373,394,405,426,437,458,469,490,501,
+             9,22,41,54,73,86,105,118,137,150,169,182,201,214,233,246,265,278,297,310,329,342,361,374,393,406,425,438,457,470,489,502,
+             8,23,40,55,72,87,104,119,136,151,168,183,200,215,232,247,264,279,296,311,328,343,360,375,392,407,424,439,456,471,488,503,
+             7,24,39,56,71,88,103,120,135,152,167,184,199,216,231,248,263,280,295,312,327,344,359,376,391,408,423,440,455,472,487,504,
+             6,25,38,57,70,89,102,121,134,153,166,185,198,217,230,249,262,281,294,313,326,345,358,377,390,409,422,441,454,473,486,505,
+             5,26,37,58,69,90,101,122,133,154,165,186,197,218,229,250,261,282,293,314,325,346,357,378,389,410,421,442,453,474,485,506,
+             4,27,36,59,68,91,100,123,132,155,164,187,196,219,228,251,260,283,292,315,324,347,356,379,388,411,420,443,452,475,484,507,
+             3,28,35,60,67,92,99,124,131,156,163,188,195,220,227,252,259,284,291,316,323,348,355,380,387,412,419,444,451,476,483,508,
+             2,29,34,61,66,93,98,125,130,157,162,189,194,221,226,253,258,285,290,317,322,349,354,381,386,413,418,445,450,477,482,509,
+             1,30,33,62,65,94,97,126,129,158,161,190,193,222,225,254,257,286,289,318,321,350,353,382,385,414,417,446,449,478,481,510,
+             0,31,32,63,64,95,96,127,128,159,160,191,192,223,224,255,256,287,288,319,320,351,352,383,384,415,416,447,448,479,480,511
+
             ];
 const gamma = 2.2;
 
-ledPerPacket = ledPerPacket * 2;
+ledPerPacket = ledPerPacket * 2; //.. yeah i know
+var lframe = false;
+
+
+
 var processor = {
 
     timerCallback: function() {
@@ -47,15 +53,17 @@ var processor = {
             return;
         }
         var t0 = performance.now()
-        this.computeFrame();
+        this.sendFrame();
         let self = this;
         setTimeout(function() {
             self.timerCallback();
-        }, (1000/maxFps) - (performance.now() - t0) );
+        }, (1000/maxPps) - (performance.now() - t0) );
     },
 
     doLoad: function(video) {
         this.video = video; //document.querySelector(".html5-video-container > video");
+        this.leds = new Array();
+        this.frameseqpos = 0;
 
         this.c1 = document.createElement('canvas');
         this.c1.width = WallWidth;
@@ -107,11 +115,12 @@ var processor = {
         };
         return this.webSocket;
     },
-    computeFrame: function() {
 
+    computeFrame: function() {
+        fpslog();
         //crop position
         var left = 0;
-        var extrawidth = (this.c1.height * this.aspect) - this.c1.width;
+        var extrawidth = 0;// (this.c1.height * this.aspect) - this.c1.width;
         if (extrawidth > 0) {
             left = (extrawidth / 2) * -1;
         }
@@ -130,37 +139,50 @@ var processor = {
         //send data
         var frame = this.ctx1.getImageData(0, 0, this.c1.width, this.c1.height);
         let l = frame.data.length;
-        var leds = new Array();
+        this.leds = new Array();
         var rgb = new Array();
 
         //topleft to bottom right
-        for (let i = 0; i < l;) {
-            rgb[0] = frame.data[i++];
-            rgb[1] = frame.data[i++];
-            rgb[2] = frame.data[i++];
-            i++;
-            leds.push(map[i / 4]); //{"seg":{"i":[0,[255,0,0], 1,[0,255,0], 2,[0,0,255]]}}
-            leds.push(rgb);
-            rgb = new Array();
-        }
         try {
-            //wled cant handle fragmentation, keep packets small enugh
-            //todo: byte based split, send first batch without numbering
-            for (let i = 0; i < leds.length / ledPerPacket;) {
+            for (let i = 0; i < l;) {
+                if (lframe.data && (frame.data[i] !== lframe.data[i] || frame.data[i+1] !== lframe.data[i+1] || frame.data[i+2] !== lframe.data[i+2])) {
+                    rgb[0] = frame.data[i];
+                    rgb[1] = frame.data[i+1];
+                    rgb[2] = frame.data[i+2];
+                    this.leds.push(map[Math.max(0,i / 4)]); //{"seg":{"i":[0,[255,0,0], 1,[0,255,0], 2,[0,0,255]]}}
+                    this.leds.push(rgb);
+                    rgb = new Array();
+                }
+                i=i+4;
+            }
+            this.frameseqpos = 0;
+            lframe = frame;
+        } catch(error) {}
+    },
+
+    sendFrame: function() {
+        if ( this.frameseqpos < this.leds.length / ledPerPacket && this.leds.length > 0) {
+            try {
+                //wled cant handle fragmentation, keep packets small enugh
+                //todo: byte based split, send first batch without numbering
                 var reqpayload = JSON.stringify({
                     "seg": {
-                        "i": leds.slice(ledPerPacket * i, ledPerPacket * (i + 1))
+                        "i": this.leds.slice(ledPerPacket * this.frameseqpos, ledPerPacket * (this.frameseqpos + 1))
                     }
                 });
 
-                //console.log(reqpayload);
                 this.webSocket.send(reqpayload);
-                i++;
-            };
+                this.frameseqpos++;
 
-        } catch (error) {
-            console.error(error);
+            } catch (error) {
+                this.frameseqpos--;
+                console.error(error);
+            }
+        } else {
+            this.frameseqpos = 0;
+            this.computeFrame();
         }
+
     }
 };
 /**
@@ -234,7 +256,7 @@ var resample_single = function(canvas, width, height, resize_canvas) {
                 data2[x2] = Math.round(255 * Math.pow(((gx_r / weights) / 255), gamma));
                 data2[x2+1] = Math.round(255 * Math.pow(((gx_g / weights) / 255), gamma));
                 data2[x2+2] = Math.round(255 * Math.pow((( gx_b / weights) / 255), gamma));
-                 data2[x2 + 3] = 255;
+                data2[x2 + 3] = 255;
             } else {
                 data2[x2] = gx_r / weights;
                 data2[x2 + 1] =gx_g / weights;
@@ -246,7 +268,35 @@ var resample_single = function(canvas, width, height, resize_canvas) {
 
     return img2;
 }
+var lastCalledTime;
+var counter = 0;
+var fpsArray = [];
 
+function fpslog() {
+    var fps;
+
+    if (!lastCalledTime) {
+        lastCalledTime = new Date().getTime();
+        fps = 0;
+    }
+
+    var delta = (new Date().getTime() - lastCalledTime) / 1000;
+    lastCalledTime = new Date().getTime();
+    fps = Math.ceil((1/delta));
+
+    if (counter >= 60) {
+        var sum = fpsArray.reduce(function(a,b) { return a + b });
+        var average = Math.ceil(sum / fpsArray.length);
+        console.log(average);
+        counter = 0;
+    } else {
+        if (fps !== Infinity) {
+            fpsArray.push(fps);
+        }
+
+        counter++;
+    }
+}
 
 //todo
 /*
@@ -268,4 +318,6 @@ var checkExist = setInterval(function() {
         processor.doLoad(videos[0]);
     }
 }, 1000);
+
+
 
