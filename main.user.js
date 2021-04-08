@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         video2wledwall
 // @namespace    https://github.com/scamiv/html5video2wled
-// @version      0.7
+// @version      0.71
 // @description  takes html5 video object and sends it to wled using websocket api
 // @author       You
 // @match         *://*.youtube.com/*
@@ -17,9 +17,10 @@ const WallWidth = 32;
 const WallHeigth = 16;
 const resample = true; //resize/resample using Hermite filter
 
-var ledPerPacket = 72;
+var ledPerPacket = 72; //could go for bytes per packet to squeeze some more fps out
 const maxPps = 120; // packages per second, experimental value
 
+const gamma = 2.2;
 
 const map = [15,16,47,48,79,80,111,112,143,144,175,176,207,208,239,240,271,272,303,304,335,336,367,368,399,400,431,432,463,464,495,496,
              14,17,46,49,78,81,110,113,142,145,174,177,206,209,238,241,270,273,302,305,334,337,366,369,398,401,430,433,462,465,494,497,
@@ -37,12 +38,11 @@ const map = [15,16,47,48,79,80,111,112,143,144,175,176,207,208,239,240,271,272,3
              2,29,34,61,66,93,98,125,130,157,162,189,194,221,226,253,258,285,290,317,322,349,354,381,386,413,418,445,450,477,482,509,
              1,30,33,62,65,94,97,126,129,158,161,190,193,222,225,254,257,286,289,318,321,350,353,382,385,414,417,446,449,478,481,510,
              0,31,32,63,64,95,96,127,128,159,160,191,192,223,224,255,256,287,288,319,320,351,352,383,384,415,416,447,448,479,480,511
-
             ];
-const gamma = 2.2;
+
 
 ledPerPacket = ledPerPacket * 2; //.. yeah i know
-var lframe = false;
+
 
 
 
@@ -64,6 +64,7 @@ var processor = {
         this.video = video; //document.querySelector(".html5-video-container > video");
         this.leds = new Array();
         this.frameseqpos = 0;
+        this.lframe = false;
 
         this.c1 = document.createElement('canvas');
         this.c1.width = WallWidth;
@@ -145,7 +146,7 @@ var processor = {
         //topleft to bottom right
         try {
             for (let i = 0; i < l;) {
-                if (lframe.data && (frame.data[i] !== lframe.data[i] || frame.data[i+1] !== lframe.data[i+1] || frame.data[i+2] !== lframe.data[i+2])) {
+                if (this.lframe.data && (frame.data[i] !== this.lframe.data[i] || frame.data[i+1] !== this.lframe.data[i+1] || frame.data[i+2] !== this.lframe.data[i+2])) {
                     rgb[0] = frame.data[i];
                     rgb[1] = frame.data[i+1];
                     rgb[2] = frame.data[i+2];
@@ -156,7 +157,7 @@ var processor = {
                 i=i+4;
             }
             this.frameseqpos = 0;
-            lframe = frame;
+            this.lframe = frame;
         } catch(error) {}
     },
 
@@ -181,6 +182,7 @@ var processor = {
         } else {
             this.frameseqpos = 0;
             this.computeFrame();
+            this.sendFrame();
         }
 
     }
